@@ -56,35 +56,43 @@ That's it — the skill is available immediately in any project.
 
 ## Usage
 
-Once installed, trigger the skill naturally in any Claude Code conversation:
+Type `/local-code-review` followed by a target in any Claude Code conversation. All commands run entirely offline — no PR or remote connection needed.
 
-```
-/local-code-review
-```
+### By scope
 
-Or just describe what you want:
+| Command | What gets reviewed |
+|---|---|
+| `/local-code-review` | All uncommitted changes (`git diff HEAD`) |
+| `/local-code-review uncommitted` | All uncommitted changes (`git diff HEAD`) |
+| `/local-code-review staged` | Only staged changes (`git diff --cached`) |
+| `/local-code-review unstaged` | Only unstaged changes (`git diff`) |
+| `/local-code-review all` | Entire codebase (every tracked file) |
+
+### By path
+
+| Command | What gets reviewed |
+|---|---|
+| `/local-code-review src/` | All files in the `src/` directory |
+| `/local-code-review app/auth/` | All files in a subdirectory |
+| `/local-code-review src/auth.py` | A single file |
+
+### By commit or branch
+
+| Command | What gets reviewed |
+|---|---|
+| `/local-code-review last commit` | The most recent commit (`git show HEAD`) |
+| `/local-code-review a3f92c1` | A specific commit by hash |
+| `/local-code-review my-feature-branch` | Everything on a branch vs `main` |
+| `/local-code-review a3f92c1..HEAD` | A range of commits |
+
+### Natural language also works
 
 ```
 review my staged changes
-check this file for security issues: src/auth.py
-review the whole codebase
-audit app/ for bugs
+check src/auth.py for security issues
+audit the whole codebase
 review the last commit
 ```
-
-### Review targets
-
-| What you say | What gets reviewed |
-|---|---|
-| (nothing / "my changes") | `git diff HEAD` |
-| "staged" | `git diff --cached` |
-| "unstaged" | `git diff` |
-| "all" / "whole codebase" | Every tracked file via `git ls-files` |
-| A directory path (e.g. `src/`) | All files in that directory |
-| A file path | That file directly |
-| A commit hash | `git show <hash>` |
-| A branch name | `git diff main..<branch>` |
-| `<hash1>..<hash2>` | `git diff <hash1>..<hash2>` |
 
 ### Report format
 
