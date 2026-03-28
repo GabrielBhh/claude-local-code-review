@@ -6,7 +6,7 @@ A Claude Code skill that performs a thorough, multi-dimensional code review enti
 
 ## What it does
 
-Invoke it and Claude will review your code across 17 dimensions:
+Invoke it and Claude will review your code across 18 dimensions:
 
 | # | Dimension |
 |---|---|
@@ -27,6 +27,7 @@ Invoke it and Claude will review your code across 17 dimensions:
 | 15 | Internationalisation (i18n) |
 | 16 | Observability (logging, tracing, metrics) |
 | 17 | Concurrency & thread safety |
+| 18 | Code simplification & readability |
 
 **Languages supported**: Python · JavaScript · TypeScript · Go · Java · Kotlin · Ruby · Rust · C · C++ · PHP · C# · Dart/Flutter · SQL · Shell/Bash · Swift/SwiftUI · Dockerfile · YAML · Terraform
 
@@ -109,12 +110,13 @@ Every finding is tagged by severity and includes a `file:line` reference plus a 
 ## File structure
 
 ```
-local-code-review/
+claude-local-code-review/
 ├── SKILL.md                          # Skill definition (loaded by Claude Code)
 ├── README.md                         # This file
 └── references/
-    ├── security-rules.md             # OWASP Top 10 + secret detection patterns
-    ├── language-rules.md             # Per-language best practice rules
+    ├── security-rules.md             # OWASP Top 10, secret detection, SSTI, XXE, ReDoS
+    ├── language-rules.md             # Per-language best practice rules (19 languages)
+    ├── simplification-rules.md       # Code simplification & readability patterns
     ├── swift-apple-rules.md          # Swift/SwiftUI + Apple Liquid Glass (iOS 26)
     └── api-design-rules.md           # REST, GraphQL, and gRPC design rules
 ```
@@ -134,7 +136,10 @@ Contributions are welcome — new language rules, additional review dimensions, 
 
 1. Fork this repository.
 2. Edit the relevant file under `references/` or `SKILL.md`.
-3. Repackage: `zip -r local-code-review.skill local-code-review/`
+3. Repackage from the **parent directory**:
+   ```bash
+   zip -r claude-local-code-review.skill claude-local-code-review/ --exclude "*.git*" --exclude "*.skill"
+   ```
 4. Open a pull request with a short description of what you added and why.
 
 **Adding a new language**: Add a section to `references/language-rules.md` using the existing table format (Issue / Violation / Fix), then add the language name to the detection list in `SKILL.md` Step 2.
