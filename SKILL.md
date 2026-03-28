@@ -63,15 +63,15 @@ Scan file extensions in the diff/files. Then read the relevant reference files:
 Work through every dimension below. Don't skip any — a clean result is still worth noting.
 
 1. **Bugs & Logic Errors** — null dereferences, off-by-one, wrong conditionals, race conditions, unhandled edge cases
-2. **Security (OWASP Top 10)** — injection (SQL, shell, XSS), broken auth, IDOR, misconfigurations, cryptography misuse. Apply patterns from `references/security-rules.md`
+2. **Security (OWASP Top 10)** — injection (SQL, shell, XSS, SSTI, XXE), broken auth, IDOR (validate resource ownership after JWT check), open redirect, CSRF, missing security headers, cryptography misuse, non-constant-time comparisons, JWT in URL/localStorage, hardcoded env fallback secrets, ReDoS. Apply all patterns from `references/security-rules.md`
 3. **Secrets / Credential Leaks** — API keys, tokens, passwords, private keys in source. Use regex patterns from `references/security-rules.md`
 4. **Language Best Practices** — idioms, DRY, SOLID, naming. Apply rules from `references/language-rules.md` (or `references/swift-apple-rules.md` for Swift)
 5. **Complexity** — functions >20 lines or nesting >3 levels → warn
 6. **Dead Code** — unused imports, variables, unreachable branches
 7. **Code Duplication** — visually similar blocks that could be extracted
 8. **Test Coverage Gaps** — new public functions/classes with no corresponding test
-9. **Dependency Risk** — newly added packages: unknown, unmaintained, or license-risky
-10. **Performance Anti-patterns** — N+1 queries, sync I/O in async context, unnecessary re-renders, blocking the main thread
+9. **Dependency Risk** — newly added packages: unknown, unmaintained (e.g. `python-jose`, `request`, `pycrypto`), license-risky, or with known CVEs; flag packages with no releases in 2+ years
+10. **Performance Anti-patterns** — N+1 queries, sync I/O in async context, unnecessary re-renders, blocking the main thread, reading full request body into memory before size validation (OOM/DoS risk)
 11. **Documentation Gaps** — public APIs or exported functions missing docstrings/JSDoc
 12. **Accessibility (Frontend)** — missing alt text, aria labels, keyboard navigation
 13. **SDLC Hygiene** — missing error handling at system boundaries, hardcoded environment assumptions, no availability guards for new platform APIs

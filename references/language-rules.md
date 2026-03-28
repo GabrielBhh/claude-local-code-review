@@ -14,6 +14,14 @@
 | `pickle` of untrusted data | `pickle.loads(user_data)` | Use JSON or signed/validated serialization |
 | Wildcard imports | `from module import *` | Explicit imports |
 | Global mutable state | module-level `list` or `dict` mutated by functions | Encapsulate in class or pass as argument |
+| Hardcoded env var fallback | `os.getenv("SECRET_KEY", "dev-secret")` | `os.environ["SECRET_KEY"]` — fail loudly if missing rather than silently use a weak default |
+| Non-constant-time secret comparison | `if token == expected_token:` | `import hmac; hmac.compare_digest(token, expected_token)` — prevents timing attacks |
+| File content read before size check | `data = await file.read(); if len(data) > MAX:` | Check `Content-Length` header first, or stream with a cap: `file.read(MAX + 1)` |
+| Unconstrained string field as enum | `status: str` in Pydantic model | `status: Literal["active", "inactive"]` or `class Status(str, Enum)` |
+| Privileged route missing role dependency | `@router.put("/settings/api-keys")` with only auth | Add `current_user: User = Depends(require_admin)` or equivalent role guard |
+| Known unmaintained package | `python-jose` imported | Replace with `authlib` or `PyJWT`; `pycrypto` → `cryptography` |
+| SSTI via `render_template_string` | `render_template_string(user_input)` | Use `render_template("file.html", value=user_input)` — never render user input as template source |
+| JWT algorithm not pinned | `jwt.decode(token, key)` | `jwt.decode(token, key, algorithms=["HS256"])` — prevents algorithm confusion (`"alg": "none"`) |
 
 **Complexity thresholds**: Functions >20 lines → warn. Nesting >3 levels → warn.
 
