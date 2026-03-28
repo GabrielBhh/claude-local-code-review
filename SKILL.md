@@ -52,7 +52,7 @@ When reviewing `all` or a directory, the codebase may be large. Work through it 
 Scan file extensions in the diff/files. Then read the relevant reference files:
 
 - Any language present → always read `references/security-rules.md`
-- Python / JS / TS / Go / Java / Kotlin / Ruby / SQL / Shell / Dockerfile / YAML / Terraform / Rust / C / C++ / PHP / C# / Dart → read `references/language-rules.md`
+- Python / JS / TS / Go / Java / Kotlin / Ruby / SQL / Shell / Dockerfile / YAML / Terraform / Rust / C / C++ / PHP / C# / Dart → read `references/language-rules.md` and `references/simplification-rules.md`
 - `.swift` files → read `references/swift-apple-rules.md`
 - REST controllers, GraphQL schemas (`.graphql`, `.gql`), or `.proto` files detected → read `references/api-design-rules.md`
 
@@ -79,6 +79,7 @@ Work through every dimension below. Don't skip any — a clean result is still w
 15. **Internationalisation (i18n)** — hardcoded user-facing strings that should be in a strings/translation file, locale-sensitive number or date formatting done with raw string operations, pluralisation logic baked into code rather than delegated to an i18n library
 16. **Observability** — raw `print`/`fmt.Println`/`console.log` in request-handling paths (use structured logger), missing trace/correlation ID propagation across service calls, silent `catch`/`except` blocks that swallow errors without logging, metric names missing units or using unbounded label cardinality
 17. **Concurrency & Thread Safety** — shared mutable state accessed without synchronisation (beyond Go-specific rules), lock ordering inconsistency (potential deadlock), `sleep`-based polling instead of signals/channels/condition variables, blocking I/O on an async/event-loop thread causing starvation
+18. **Code Simplification & Readability** — apply patterns from `references/simplification-rules.md`: redundant boolean expressions, unnecessary variable before return, nested `if` that should be a guard clause, unnecessary `else` after `return`/`raise`, magic numbers/strings without named constants, functions with too many parameters (>4), SRP violations (one function doing fetch + transform + validate + persist), double negation, language-specific idiom improvements (comprehensions, optional chaining, `errors.Is`, `filter_map`, etc.). All findings here are 🔵 Suggestion unless the pattern obscures a bug.
 
 ---
 
