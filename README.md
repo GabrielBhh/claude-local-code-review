@@ -34,9 +34,21 @@ Invoke it and Claude will review your code across 17 dimensions:
 
 ## Installation
 
-1. Download `local-code-review.skill` from this repository (or clone it).
+### Option A — Download from Releases (easiest)
+
+1. Go to the [Releases](../../releases) page and download `claude-local-code-review.skill`.
 2. Open **Claude Code**.
-3. Go to **Customize/Settings → Skills → Upload skill** and select `local-code-review.skill`.
+3. Go to **Customize/Settings → Skills → Upload skill** and select the downloaded file.
+
+### Option B — Build from source
+
+```bash
+git clone https://github.com/GabrielBhh/claude-local-code-review.git
+cd ..
+zip -r claude-local-code-review.skill claude-local-code-review/ --exclude "*.git*" --exclude "*.skill"
+```
+
+Then upload `claude-local-code-review.skill` via **Customize/Settings → Skills → Upload skill**.
 
 That's it — the skill is available immediately in any project.
 
