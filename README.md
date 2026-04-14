@@ -18,7 +18,7 @@ Invoke it and Claude will review your code across 18 dimensions:
 | 6 | Dead code |
 | 7 | Code duplication |
 | 8 | Test coverage gaps |
-| 9 | Dependency risk |
+| 9 | Dependency risk & CVE scanning |
 | 10 | Performance anti-patterns |
 | 11 | Documentation gaps |
 | 12 | Accessibility (frontend) |
@@ -118,8 +118,38 @@ claude-local-code-review/
     ├── language-rules.md             # Per-language best practice rules (19 languages)
     ├── simplification-rules.md       # Code simplification & readability patterns
     ├── swift-apple-rules.md          # Swift/SwiftUI + Apple Liquid Glass (iOS 26)
-    └── api-design-rules.md           # REST, GraphQL, and gRPC design rules
+    ├── api-design-rules.md           # REST, GraphQL, and gRPC design rules
+    └── cve-scanning-rules.md         # CVE scanning via CLI tools + OSV.dev API
 ```
+
+---
+
+## CVE Scanning
+
+Dimension #9 performs live CVE scanning against your dependencies — no separate tool invocation needed.
+
+**How it works:**
+
+1. Detects lockfiles in the repository (`package-lock.json`, `requirements.txt`, `Cargo.lock`, `go.sum`, `Gemfile.lock`, `composer.lock`, `pubspec.lock`, `Package.resolved`, `pom.xml`, `.terraform.lock.hcl`, etc.)
+2. Runs the ecosystem's CLI audit tool if installed:
+
+| Ecosystem | CLI tool |
+|---|---|
+| Python | `pip-audit` |
+| JavaScript / TypeScript | `npm audit`, `yarn audit`, `pnpm audit` |
+| Go | `govulncheck ./...` |
+| Java / Kotlin | `mvn dependency-check:check` |
+| Ruby | `bundle audit` |
+| Rust | `cargo audit` |
+| PHP | `composer audit` |
+| C# / .NET | `dotnet list package --vulnerable` |
+| Dart / Flutter | `dart pub outdated` |
+| Terraform / Dockerfile | `trivy fs .` |
+
+3. If the CLI tool is not installed, falls back to querying the **[OSV.dev](https://osv.dev) batch API** — a free, open vulnerability database covering all major ecosystems.
+4. Reports findings with CVSS severity, CVE ID, affected version, and the fix version.
+
+> CVE scanning requires internet access to reach OSV.dev. The rest of the review runs fully offline.
 
 ---
 

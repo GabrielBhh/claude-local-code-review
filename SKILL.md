@@ -55,6 +55,7 @@ Scan file extensions in the diff/files. Then read the relevant reference files:
 - Python / JS / TS / Go / Java / Kotlin / Ruby / SQL / Shell / Dockerfile / YAML / Terraform / Rust / C / C++ / PHP / C# / Dart → read `references/language-rules.md` and `references/simplification-rules.md`
 - `.swift` files → read `references/swift-apple-rules.md`
 - REST controllers, GraphQL schemas (`.graphql`, `.gql`), or `.proto` files detected → read `references/api-design-rules.md`
+- Any dependency file detected (`requirements.txt`, `package-lock.json`, `Cargo.lock`, `go.sum`, `Gemfile.lock`, `composer.lock`, `pubspec.lock`, `Package.resolved`, `pom.xml`, `packages.lock.json`, `.terraform.lock.hcl`, etc.) → read `references/cve-scanning-rules.md`
 
 ---
 
@@ -70,7 +71,7 @@ Work through every dimension below. Don't skip any — a clean result is still w
 6. **Dead Code** — unused imports, variables, unreachable branches
 7. **Code Duplication** — visually similar blocks that could be extracted
 8. **Test Coverage Gaps** — new public functions/classes with no corresponding test
-9. **Dependency Risk** — newly added packages: unknown, unmaintained (e.g. `python-jose`, `request`, `pycrypto`), license-risky, or with known CVEs; flag packages with no releases in 2+ years
+9. **Dependency Risk & CVE Scanning** — apply `references/cve-scanning-rules.md`: detect lockfiles for all supported ecosystems, run the CLI audit tool if available (`pip-audit`, `npm audit`, `cargo audit`, `govulncheck`, `bundle audit`, `composer audit`, `dotnet list package --vulnerable`, `dart pub outdated`, `trivy fs .`), fall back to querying the OSV.dev batch API (`POST https://api.osv.dev/v1/querybatch`) if the tool is not installed. Also flag: unknown or unmaintained packages (`python-jose`, `pycrypto`, `request`), packages with no releases in 2+ years, and license-risky dependencies
 10. **Performance Anti-patterns** — N+1 queries, sync I/O in async context, unnecessary re-renders, blocking the main thread, reading full request body into memory before size validation (OOM/DoS risk)
 11. **Documentation Gaps** — public APIs or exported functions missing docstrings/JSDoc
 12. **Accessibility (Frontend)** — missing alt text, aria labels, keyboard navigation
@@ -139,4 +140,4 @@ Ordered action list from most to least critical.
 - Always cite `file:line` — without it, findings are hard to act on.
 - For each finding, lean toward a concrete fix snippet over a vague recommendation.
 - If the diff is large (>400 lines), note it at the top: large diffs are harder to review thoroughly.
-- Do not make network calls. Everything must be derivable from the local repository.
+- Do not make network calls to remote git hosts or PR systems — everything must be derivable from the local repository. **Exception**: CVE scanning may query the OSV.dev API (`https://api.osv.dev`) to check dependencies against the vulnerability database.
