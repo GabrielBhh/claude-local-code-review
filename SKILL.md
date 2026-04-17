@@ -1,21 +1,21 @@
 ---
-name: claude-code-audit
+name: code-audit
 description: |
   Deep local code audit — runs the project's real analyzers (ruff, eslint, gosec,
   cargo clippy, semgrep, bandit, etc.), scans dependencies for CVEs via OSV.dev,
   detects secrets in git history with gitleaks, analyses git-history hotspots
   (churn × complexity, ownership, temporal coupling), cross-checks findings
-  against project conventions (CLAUDE.md, ADRs), and layers Claude's reasoning
-  on top of tool output. Respects `.codereview-baseline.json` so only new
-  regressions surface. Trigger when the user asks to "audit my code", "review my
-  changes", "check for security issues", "run a deep review", "run the tools",
-  or mentions /claude-code-audit. Position: the gate before commit/PR — deeper
-  than Claude's built-in review. Languages: Python, JS/TS, Go, Java, Kotlin,
-  Ruby, Rust, C, C++, PHP, C#, Dart/Flutter, SQL, Shell, Swift, Dockerfile,
-  YAML, Terraform.
+  against project conventions (AGENTS.md, CONTRIBUTING.md, ADRs), and layers
+  reasoning on top of tool output. Respects `.codereview-baseline.json` so only
+  new regressions surface. Trigger when the user asks to "audit my code",
+  "review my changes", "check for security issues", "run a deep review",
+  "run the tools", or mentions /code-audit. Position: the gate before
+  commit/PR — deeper than in-flow reasoning reviews. Languages: Python, JS/TS,
+  Go, Java, Kotlin, Ruby, Rust, C, C++, PHP, C#, Dart/Flutter, SQL, Shell,
+  Swift, Dockerfile, YAML, Terraform.
 ---
 
-# claude-code-audit
+# code-audit
 
 A deep, **tool-orchestrating** code audit. Runs the real static analyzers, CVE scanners, secret history scanners, and git-intelligence commands on your local repo, then merges their output with Claude's reasoning into one structured report.
 

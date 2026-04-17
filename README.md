@@ -1,14 +1,14 @@
-# claude-code-audit
+# code-audit
 
 > A Claude Code skill that **orchestrates real tools** — static analyzers, CVE scanners, secret history scanners, git archaeology — and layers Claude's reasoning on top. Runs locally. Designed as the **gate before commit or PR**.
 
-This is intentionally different from Claude's built-in code review. Built-in review is fast, reasoning-only, and great in-flow. `claude-code-audit` is the deep pass: it actually runs your project's linters, queries CVE databases, scans git history for secrets, and analyses churn/complexity hotspots — things raw prompting can't do.
+This is intentionally different from Claude's built-in code review. Built-in review is fast, reasoning-only, and great in-flow. `code-audit` is the deep pass: it actually runs your project's linters, queries CVE databases, scans git history for secrets, and analyses churn/complexity hotspots — things raw prompting can't do.
 
 ---
 
 ## What makes this different
 
-| | Claude's built-in review | `claude-code-audit` |
+| | Claude's built-in review | `code-audit` |
 |---|---|---|
 | Speed | Seconds | 1–3 minutes |
 | Reasoning | ✅ | ✅ (baked in) |
@@ -54,16 +54,16 @@ Every invocation runs this 9-step pipeline:
 
 ### Option A — Download from Releases (easiest)
 
-1. Go to the [Releases](../../releases) page and download `claude-code-audit.skill`.
+1. Go to the [Releases](../../releases) page and download `code-audit.skill`.
 2. Open **Claude Code**.
 3. **Customize/Settings → Skills → Upload skill** → select the file.
 
 ### Option B — Build from source
 
 ```bash
-git clone https://github.com/GabrielBhh/claude-code-audit.git
+git clone https://github.com/GabrielBhh/code-audit.git
 cd ..
-zip -r claude-code-audit.skill claude-code-audit/ --exclude "*.git*" --exclude "*.skill"
+zip -r code-audit.skill code-audit/ --exclude "*.git*" --exclude "*.skill"
 ```
 
 Upload via **Customize/Settings → Skills → Upload skill**.
@@ -72,38 +72,38 @@ Upload via **Customize/Settings → Skills → Upload skill**.
 
 ## Usage
 
-Type `/claude-code-audit` followed by a target. All commands run locally (except CVE/license lookups which query public APIs).
+Type `/code-audit` followed by a target. All commands run locally (except CVE/license lookups which query public APIs).
 
 ### By scope
 
 | Command | What gets audited |
 |---|---|
-| `/claude-code-audit` | All uncommitted changes (`git diff HEAD`) |
-| `/claude-code-audit staged` | Only staged changes |
-| `/claude-code-audit unstaged` | Only unstaged changes |
-| `/claude-code-audit all` | Entire codebase |
+| `/code-audit` | All uncommitted changes (`git diff HEAD`) |
+| `/code-audit staged` | Only staged changes |
+| `/code-audit unstaged` | Only unstaged changes |
+| `/code-audit all` | Entire codebase |
 
 ### By path
 
 | Command | What gets audited |
 |---|---|
-| `/claude-code-audit src/` | All files in `src/` |
-| `/claude-code-audit src/auth.py` | Single file |
+| `/code-audit src/` | All files in `src/` |
+| `/code-audit src/auth.py` | Single file |
 
 ### By commit or branch
 
 | Command | What gets audited |
 |---|---|
-| `/claude-code-audit last commit` | Most recent commit |
-| `/claude-code-audit a3f92c1` | Specific commit by hash |
-| `/claude-code-audit my-feature-branch` | Branch vs main |
-| `/claude-code-audit a3f92c1..HEAD` | Range of commits |
+| `/code-audit last commit` | Most recent commit |
+| `/code-audit a3f92c1` | Specific commit by hash |
+| `/code-audit my-feature-branch` | Branch vs main |
+| `/code-audit a3f92c1..HEAD` | Range of commits |
 
 ### Baseline management
 
 | Command | Effect |
 |---|---|
-| `/claude-code-audit baseline update` | Re-snapshot current findings as accepted baseline |
+| `/code-audit baseline update` | Re-snapshot current findings as accepted baseline |
 
 ---
 
@@ -115,10 +115,10 @@ Type `/claude-code-audit` followed by a target. All commands run locally (except
 |---|---|
 | Writing code, asking questions | Claude directly (no skill) |
 | Quick sanity check | `review my staged changes` (Claude's built-in) |
-| Final pass before commit | `/claude-code-audit staged` |
-| Before opening a PR | `/claude-code-audit <branch>` |
-| Weekly drift check | `/claude-code-audit all` |
-| Initial adoption on mature codebase | `/claude-code-audit all` → `/claude-code-audit baseline update` |
+| Final pass before commit | `/code-audit staged` |
+| Before opening a PR | `/code-audit <branch>` |
+| Weekly drift check | `/code-audit all` |
+| Initial adoption on mature codebase | `/code-audit all` → `/code-audit baseline update` |
 
 Claude's built-in review is your **rough-draft editor**. This skill is the **fact-checking pass** before shipping.
 
@@ -151,8 +151,8 @@ Missing tools appear in a "Tooling suggestions" section with the one-line instal
 
 Most teams adopting a code audit tool drown in pre-existing findings. Baseline mode fixes this.
 
-1. Run `/claude-code-audit all` on a fresh repo
-2. Run `/claude-code-audit baseline update` — snapshots all current findings as accepted
+1. Run `/code-audit all` on a fresh repo
+2. Run `/code-audit baseline update` — snapshots all current findings as accepted
 3. Future audits only report **new regressions**, not legacy findings
 
 The baseline file (`.codereview-baseline.json`) should be **committed to the repo** so the whole team shares it.
@@ -208,7 +208,7 @@ Python · JavaScript · TypeScript · Go · Java · Kotlin · Ruby · Rust · C 
 ## File structure
 
 ```
-claude-code-audit/
+code-audit/
 ├── SKILL.md                               # Skill definition (loaded by Claude Code)
 ├── README.md                              # This file
 └── references/
@@ -241,7 +241,7 @@ Things being considered for v2.1+:
 - Framework-specific reference files: `react-rules.md`, `django-rules.md`, `rails-rules.md`, `fastapi-rules.md`, `nextjs-rules.md`
 - Domain-specific modes: financial (money as `Decimal`), ML (data leakage), blockchain (reentrancy)
 - SARIF output format for CI integration (GitHub Code Scanning, GitLab)
-- Pre-commit hook installer: `/claude-code-audit install-hook`
+- Pre-commit hook installer: `/code-audit install-hook`
 - Mutation testing integration for deep test-quality review
 
 Opinions and PRs welcome — see Contributing below.
@@ -263,7 +263,7 @@ Contributions are welcome. Especially:
 2. Edit the relevant `references/*.md` file or `SKILL.md`
 3. Repackage (from the parent directory):
    ```bash
-   zip -r claude-code-audit.skill claude-code-audit/ --exclude "*.git*" --exclude "*.skill"
+   zip -r code-audit.skill code-audit/ --exclude "*.git*" --exclude "*.skill"
    ```
 4. Open a PR with a short description of what you added and why
 
@@ -279,4 +279,4 @@ MIT
 
 ## History
 
-Previously named `claude-local-code-review` (v1.0–1.1). Renamed and repositioned in v2.0 to reflect the tool-orchestration focus.
+Previously named `claude-local-code-review` (v1.0–1.1) and briefly `claude-code-audit` (v2.0). Renamed to `code-audit` in v2.0.1 — the skill-name field cannot contain reserved words.

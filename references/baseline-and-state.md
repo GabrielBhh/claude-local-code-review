@@ -83,7 +83,7 @@ Report shows:
 
 ---
 
-## `/claude-code-audit baseline update`
+## `/code-audit baseline update`
 
 Command: when the user types this, re-snapshot the current set of findings as the new baseline.
 
