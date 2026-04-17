@@ -1,143 +1,237 @@
 ---
-name: local-code-review
+name: claude-code-audit
 description: |
-  Thorough local code review — no remote connection needed. Trigger when the user asks
-  to "review my code", "check for bugs", "audit for security", "look at my changes",
-  "review this file/codebase/everything", or mentions /local-code-review, code smells,
-  crashes, memory leaks, security issues, or wants a diff review. Covers: bugs, security
-  (OWASP Top 10), secrets/credential leaks, best practices, complexity, dead code,
-  duplication, test gaps, dependency risks, performance, docs, accessibility, API design
-  (REST/GraphQL/gRPC), i18n, observability, concurrency, SDLC hygiene, and Apple Liquid
-  Glass/iOS 26 for Swift. Languages: Python, JS/TS, Go, Java, Kotlin, Ruby, Rust, C,
-  C++, PHP, C#, Dart/Flutter, SQL, Shell, Swift, Dockerfile, YAML, Terraform.
+  Deep local code audit — runs the project's real analyzers (ruff, eslint, gosec,
+  cargo clippy, semgrep, bandit, etc.), scans dependencies for CVEs via OSV.dev,
+  detects secrets in git history with gitleaks, analyses git-history hotspots
+  (churn × complexity, ownership, temporal coupling), cross-checks findings
+  against project conventions (CLAUDE.md, ADRs), and layers Claude's reasoning
+  on top of tool output. Respects `.codereview-baseline.json` so only new
+  regressions surface. Trigger when the user asks to "audit my code", "review my
+  changes", "check for security issues", "run a deep review", "run the tools",
+  or mentions /claude-code-audit. Position: the gate before commit/PR — deeper
+  than Claude's built-in review. Languages: Python, JS/TS, Go, Java, Kotlin,
+  Ruby, Rust, C, C++, PHP, C#, Dart/Flutter, SQL, Shell, Swift, Dockerfile,
+  YAML, Terraform.
 ---
 
-# local-code-review
+# claude-code-audit
 
-A comprehensive local code review skill. Reviews staged changes, unstaged diffs, specific
-commits, branches, individual files, directories, or the entire codebase — entirely offline.
+A deep, **tool-orchestrating** code audit. Runs the real static analyzers, CVE scanners, secret history scanners, and git-intelligence commands on your local repo, then merges their output with Claude's reasoning into one structured report.
+
+**Positioning**: this is the **gate** — the deep pass you run before commit/PR. It's intentionally different from Claude's built-in review (which is the fast in-flow first-pass). This skill adds what raw prompting cannot: real tool execution, CVE data from OSV.dev, secrets in git history, and git-archaeology.
 
 ---
 
-## Step 1 — Resolve the review target
+## Pipeline overview
+
+Every invocation runs these steps in order:
+
+| Step | What it does |
+|---|---|
+| 1 | Resolve target + load config (baseline, ignore, conventions) |
+| 2 | Claude reasoning pass (baked-in first-layer review) |
+| 3 | Static analysis orchestration (per-language tools) |
+| 4 | CVE + license scanning (OSV.dev + CLI tools) |
+| 5 | Secrets in git history (gitleaks/trufflehog) |
+| 6 | Git intelligence (hotspots, ownership, coupling) |
+| 7 | Convention compliance (CLAUDE.md, AGENTS.md, ADRs) |
+| 8 | Merge + dedupe + apply baseline + ignore |
+| 9 | Write structured report |
+
+Each tool step is **opportunistic** — use what's installed, fall back to Claude reasoning if nothing is available, and note which tools would have added value.
+
+---
+
+## Step 1 — Resolve target and load config
+
+### Resolve what to audit
 
 | User input | How to gather the code |
 |---|---|
 | (nothing / "my changes") | `git diff HEAD` |
 | `staged` | `git diff --cached` |
 | `unstaged` | `git diff` |
-| `all` / "whole codebase" / "everything" | `git ls-files` → read each file (see full-codebase strategy below) |
-| `<directory-path>` (e.g. `src/`, `app/`) | `git ls-files <dir>` → read each file in that directory |
+| `all` / "whole codebase" / "everything" | `git ls-files` |
+| `<directory-path>` (e.g. `src/`) | `git ls-files <dir>` |
 | `<file-path>` | Read the file directly |
 | `<commit-hash>` | `git show <hash>` |
 | `<branch>` | `git diff main..<branch>` |
 | `<hash1>..<hash2>` | `git diff <hash1>..<hash2>` |
+| `baseline update` | Re-snapshot current findings as accepted baseline |
 
-If the diff is empty, say so clearly and ask the user what they'd like to review.
+### Load project config
 
-### Full-codebase / directory review strategy
+Before analysing, read these if present:
 
-When reviewing `all` or a directory, the codebase may be large. Work through it systematically:
+- `.codereview-baseline.json` — baseline of accepted findings (see `references/baseline-and-state.md`)
+- `.codereview-ignore` — patterns and file-specific ignores
+- Project conventions: `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, `docs/adr/*.md`, `.editorconfig`, `.prettierrc`, language-specific configs (`ruff.toml`, `.eslintrc`, etc.)
 
-1. Run `git ls-files [<dir>]` to get the full file list.
-2. Skip files that can't contain reviewable code: lock files (`package-lock.json`, `Podfile.lock`, `*.lock`), generated files (`*.pb.go`, `*_generated.*`), vendored dependencies (`vendor/`, `node_modules/`, `.venv/`), binary assets, and minified files (`*.min.js`).
-3. Group remaining files by language/type. Read and review each group in turn.
-4. If the codebase is large (>50 files), tell the user up front: summarise which directories you'll cover, then work through them group by group, producing one unified report at the end.
-5. For very large codebases (>150 files), ask the user if they'd like to narrow the scope to a specific directory or file type, or confirm they want the full sweep — it will be thorough but long.
+### Large-codebase strategy
 
----
-
-## Step 2 — Detect languages and load reference files
-
-Scan file extensions in the diff/files. Then read the relevant reference files:
-
-- Any language present → always read `references/security-rules.md`
-- Python / JS / TS / Go / Java / Kotlin / Ruby / SQL / Shell / Dockerfile / YAML / Terraform / Rust / C / C++ / PHP / C# / Dart → read `references/language-rules.md` and `references/simplification-rules.md`
-- `.swift` files → read `references/swift-apple-rules.md`
-- REST controllers, GraphQL schemas (`.graphql`, `.gql`), or `.proto` files detected → read `references/api-design-rules.md`
-- Any dependency file detected (`requirements.txt`, `package-lock.json`, `Cargo.lock`, `go.sum`, `Gemfile.lock`, `composer.lock`, `pubspec.lock`, `Package.resolved`, `pom.xml`, `packages.lock.json`, `.terraform.lock.hcl`, etc.) → read `references/cve-scanning-rules.md`
+For `all` or directory reviews of >50 files: summarise scope up front, then work through by language group. For >150 files: ask whether to narrow scope before starting.
 
 ---
 
-## Step 3 — Analyse across all dimensions
+## Step 2 — Claude reasoning pass (baked-in first layer)
 
-Work through every dimension below. Don't skip any — a clean result is still worth noting.
+Apply Claude's native reasoning before running any tools. This is the skill's equivalent of Claude's built-in review — deliberately included here so users don't need to invoke two separate skills.
 
-1. **Bugs & Logic Errors** — null dereferences, off-by-one, wrong conditionals, race conditions, unhandled edge cases
-2. **Security (OWASP Top 10)** — injection (SQL, shell, XSS, SSTI, XXE), broken auth, IDOR (validate resource ownership after JWT check), open redirect, CSRF, missing security headers, cryptography misuse, non-constant-time comparisons, JWT in URL/localStorage, hardcoded env fallback secrets, ReDoS. Apply all patterns from `references/security-rules.md`
-3. **Secrets / Credential Leaks** — API keys, tokens, passwords, private keys in source. Use regex patterns from `references/security-rules.md`
-4. **Language Best Practices** — idioms, DRY, SOLID, naming. Apply rules from `references/language-rules.md` (or `references/swift-apple-rules.md` for Swift)
-5. **Complexity** — functions >20 lines or nesting >3 levels → warn
-6. **Dead Code** — unused imports, variables, unreachable branches
-7. **Code Duplication** — visually similar blocks that could be extracted
-8. **Test Coverage Gaps** — new public functions/classes with no corresponding test
-9. **Dependency Risk & CVE Scanning** — apply `references/cve-scanning-rules.md`: detect lockfiles for all supported ecosystems, run the CLI audit tool if available (`pip-audit`, `npm audit`, `cargo audit`, `govulncheck`, `bundle audit`, `composer audit`, `dotnet list package --vulnerable`, `dart pub outdated`, `trivy fs .`), fall back to querying the OSV.dev batch API (`POST https://api.osv.dev/v1/querybatch`) if the tool is not installed. Also flag: unknown or unmaintained packages (`python-jose`, `pycrypto`, `request`), packages with no releases in 2+ years, and license-risky dependencies
-10. **Performance Anti-patterns** — N+1 queries, sync I/O in async context, unnecessary re-renders, blocking the main thread, reading full request body into memory before size validation (OOM/DoS risk)
-11. **Documentation Gaps** — public APIs or exported functions missing docstrings/JSDoc
-12. **Accessibility (Frontend)** — missing alt text, aria labels, keyboard navigation
-13. **SDLC Hygiene** — missing error handling at system boundaries, hardcoded environment assumptions, no availability guards for new platform APIs
-14. **API Design** — apply rules from `references/api-design-rules.md` when REST endpoints, GraphQL schemas, or proto files are present: wrong HTTP verbs, incorrect status codes, inconsistent error envelopes, missing pagination, IDOR, unauthenticated sensitive endpoints, GraphQL N+1 (missing DataLoader), unbounded query depth, gRPC missing deadlines
-15. **Internationalisation (i18n)** — hardcoded user-facing strings that should be in a strings/translation file, locale-sensitive number or date formatting done with raw string operations, pluralisation logic baked into code rather than delegated to an i18n library
-16. **Observability** — raw `print`/`fmt.Println`/`console.log` in request-handling paths (use structured logger), missing trace/correlation ID propagation across service calls, silent `catch`/`except` blocks that swallow errors without logging, metric names missing units or using unbounded label cardinality
-17. **Concurrency & Thread Safety** — shared mutable state accessed without synchronisation (beyond Go-specific rules), lock ordering inconsistency (potential deadlock), `sleep`-based polling instead of signals/channels/condition variables, blocking I/O on an async/event-loop thread causing starvation
-18. **Code Simplification & Readability** — apply patterns from `references/simplification-rules.md`: redundant boolean expressions, unnecessary variable before return, nested `if` that should be a guard clause, unnecessary `else` after `return`/`raise`, magic numbers/strings without named constants, functions with too many parameters (>4), SRP violations (one function doing fetch + transform + validate + persist), double negation, language-specific idiom improvements (comprehensions, optional chaining, `errors.Is`, `filter_map`, etc.). All findings here are 🔵 Suggestion unless the pattern obscures a bug.
+Focus on:
+
+- **Bugs & logic errors** — null/undefined dereferences, off-by-one, race conditions, unhandled edge cases, wrong conditionals, crash paths
+- **Security patterns** — apply `references/security-rules.md` (OWASP Top 10, SSTI, XXE, ReDoS, JWT pitfalls, open redirect, CSRF, timing attacks, secret detection regex)
+- **Non-obvious language patterns** — apply `references/language-rules.md` and `references/simplification-rules.md` (only the patterns in these files — do NOT additionally list generic idioms Claude would catch by default, like `var → const` or `== vs ===`)
+- **API design** — apply `references/api-design-rules.md` for REST/GraphQL/gRPC surfaces
+- **Swift/SwiftUI** — apply `references/swift-apple-rules.md` for `.swift` files
+
+**Important**: the reference files are intentionally curated. Do not invent generic "best practice" findings beyond what tools or references explicitly call out. The point of this skill is to add what tools + repo-wide analysis surface, not to repeat what Claude would say by default.
 
 ---
 
-## Step 4 — Write the report
+## Step 3 — Static analysis orchestration
 
-Use this exact structure. Every finding must include a `file:line` reference and a concrete Fix.
+Load `references/tool-orchestration-rules.md`. For each detected language:
+
+1. Detect which tools are installed (`command -v <tool>`)
+2. Run the installed tools (may include network calls for updated rules)
+3. Parse output, map findings to severity tiers
+4. Note which tools were NOT installed and would have added value
+
+Tools covered per language: `ruff`, `mypy`, `bandit`, `semgrep`, `vulture`, `eslint`, `tsc --noEmit`, `biome`, `ts-prune`, `go vet`, `staticcheck`, `golangci-lint`, `gosec`, `cargo clippy`, `cargo-udeps`, `rubocop`, `brakeman`, `phpstan`, `psalm`, `shellcheck`, `tfsec`, `checkov`, `tflint`, `hadolint`, `trivy`, `detekt`, `spotbugs`, and more.
+
+**Fallback pattern**: if no tools are installed for an ecosystem, rely on Claude's reasoning (already done in Step 2) and emit a single 🔵 Suggestion noting which tools would help.
+
+---
+
+## Step 4 — CVE + license scanning
+
+Load `references/tool-orchestration-rules.md` (CVE section). For each detected dependency file:
+
+1. Try the ecosystem CLI tool first (`pip-audit`, `npm audit`, `cargo audit`, `govulncheck`, `bundle audit`, `composer audit`, `dotnet list package --vulnerable`, `dart pub outdated`, `trivy fs .`)
+2. If the tool is not installed, POST to `https://api.osv.dev/v1/querybatch` with extracted `(name, version)` pairs
+3. Map CVSS scores to severity: ≥7.0 → 🔴, 4.0–6.9 → 🟡, <4.0 → 🔵
+4. **License compliance**: try `pip-licenses`, `license-checker`, `cargo-license` — flag GPL/AGPL/copyleft in transitive deps if the project licence is MIT/Apache/BSD
+
+---
+
+## Step 5 — Secrets in git history
+
+If `gitleaks` is available:
+```
+gitleaks detect --source . --report-format json
+```
+
+If not, try `trufflehog git file://. --json`. If neither is available, emit a 🔵 Suggestion with the install command. Do not scan history manually (too slow, too many false positives) — this is where tools clearly win.
+
+Finding severity: **always 🔴 Critical** when a secret is detected, even if later deleted from current HEAD — the commit SHA is public the moment it's pushed.
+
+---
+
+## Step 6 — Git intelligence
+
+Load `references/git-intelligence-rules.md`. Run:
+
+- **Churn × complexity hotspots**: combine `git log --since="6 months ago" --name-only` counts with cyclomatic complexity per file — flag files that are both frequently changed AND complex (🟡 Warning)
+- **Ownership / bus factor**: `git log --format='%an' <file>` — flag files only one author has ever touched in the changed set (🔵 Suggestion unless the file is core infra, then 🟡)
+- **Temporal coupling**: files changed together in the same commits more than 70% of the time, but in different modules → hidden coupling (🔵)
+- **Dead file candidates**: tracked files with zero commits in 2+ years and zero inbound imports → possible dead code (🔵)
+
+For a `staged` scope, only report hotspot metrics for files in the diff — don't derail into whole-repo archaeology.
+
+---
+
+## Step 7 — Convention compliance
+
+Load `references/convention-compliance-rules.md`. Cross-check findings against:
+
+- Rules stated in `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`
+- Architectural decisions in `docs/adr/*.md` (only those with status `Accepted`)
+- Declared conventions in `.editorconfig`, linter configs, `package.json` scripts
+
+When flagging a violation: **cite the source document and line**, e.g. `violates ADR-012 (docs/adr/0012-use-postgres.md:L14)`. This turns generic findings into team-specific guardrails.
+
+---
+
+## Step 8 — Merge, dedupe, apply baseline
+
+1. **Dedupe**: the same file:line flagged by multiple tools → single finding with `detected-by: [tool1, tool2, claude]` for confidence scoring
+2. **Apply baseline**: if `.codereview-baseline.json` exists, suppress findings that match. Only surface regressions and new findings.
+3. **Apply ignore**: respect `.codereview-ignore` patterns (glob-style file patterns + per-line `# codereview: ignore` comments)
+4. **Confidence scoring**:
+   - Flagged by 2+ tools + Claude = **high confidence** (bump severity up a tier if borderline)
+   - Flagged by 1 tool only = **medium**
+   - Claude reasoning only = **low** (but can still be 🔴 if clearly a bug)
+
+---
+
+## Step 9 — Write the report
 
 ```
-# Code Review Report
-**Target**: <what was reviewed>
+# Code Audit Report
+**Target**: <what was audited>
 **Date**: <today's date>
 **Language(s)**: <detected>
-**Scope**: <N files reviewed / N lines added in diff>
+**Scope**: <N files / N lines>
+**Tools run**: <list>
+**Tools missing**: <list>
+**Baseline**: <in-use / not present>
 
 ## Summary
 
-| Severity | Count |
-|---|---|
-| 🔴 Critical | N |
-| 🟡 Warning | N |
-| 🔵 Suggestion | N |
+| Severity | Count (new) | Count (baseline) |
+|---|---|---|
+| 🔴 Critical | N | M |
+| 🟡 Warning | N | M |
+| 🔵 Suggestion | N | M |
 
 ## Findings
 
-### 🔴 CRITICAL — [Short category label]
-**`path/to/file.ext:42`**
-One-sentence description of the problem.
-**Fix**: `corrected_code_snippet` or short explanation
+### 🔴 CRITICAL — [Category]
+**`path/to/file.ext:42`**  •  detected-by: `gosec` + Claude (high confidence)
+One-sentence description.
+**Fix**: concrete snippet or short explanation.
 
-### 🟡 WARNING — [Short category label]
-**`path/to/file.ext:17`**
+### 🟡 WARNING — [Category]
+**`path/to/file.ext:17`**  •  detected-by: `ruff` (medium confidence)
 ...
 
-### 🔵 SUGGESTION — [Short category label]
-**`path/to/file.ext:8`**
+### 🔵 SUGGESTION — [Category]
+**`path/to/file.ext:8`**  •  detected-by: Claude reasoning (low confidence)
 ...
 
-## What Looks Good
-- Callout positive patterns already present (keep this brief — 2-4 bullets)
+## Convention violations
+List any findings tied to a specific project doc with a link.
 
-## Recommended Next Steps
-Ordered action list from most to least critical.
+## Hotspot notes
+Brief git-intelligence callouts for changed files (if any).
+
+## Tooling suggestions
+Tools that weren't installed but would have added depth. One-line each, optional.
+
+## What looks good
+2–4 bullets of positive patterns worth preserving.
+
+## Recommended next steps
+Ordered action list, most critical first.
 ```
 
 ### Severity guide
 
 | Level | Use for |
 |---|---|
-| 🔴 Critical | Security vulnerabilities, credential leaks, crash bugs, data loss, memory leaks |
-| 🟡 Warning | Best practice violations, potential bugs, performance issues, missing tests for critical paths |
-| 🔵 Suggestion | Style, documentation, minor improvements, refactoring opportunities |
+| 🔴 Critical | Security vulnerabilities, credential leaks, known CVEs ≥7.0, crash bugs, data loss, secrets in git history |
+| 🟡 Warning | Best-practice violations confirmed by tools, performance issues, hotspot files, moderate CVEs |
+| 🔵 Suggestion | Style, minor improvements, low-confidence signals, tool installation hints |
 
 ---
 
 ## Tips
 
-- Always cite `file:line` — without it, findings are hard to act on.
-- For each finding, lean toward a concrete fix snippet over a vague recommendation.
-- If the diff is large (>400 lines), note it at the top: large diffs are harder to review thoroughly.
-- Do not make network calls to remote git hosts or PR systems — everything must be derivable from the local repository. **Exception**: CVE scanning may query the OSV.dev API (`https://api.osv.dev`) to check dependencies against the vulnerability database.
+- **Cite `file:line`** on every finding. Without it, findings aren't actionable.
+- **Cite tool provenance**: include `detected-by` so users know which tool flagged what.
+- **Be opportunistic, not demanding** — never fail if a tool is missing; fall back to reasoning and suggest the install.
+- **Do not repeat Claude's baseline** — the reference files are the curated list. Don't invent generic "best practice" findings that aren't in the refs. If a user wants that, they can ask Claude directly.
+- **Respect the baseline** — a clean report against a baseline is success, not failure. Users adopt this skill on mature codebases; reporting legacy issues as if they were new creates noise.
+- **Network calls permitted** for: OSV.dev (CVE scanning), package registries (license lookup), and tool auto-update. Not permitted: remote git hosts, PR systems, unrelated APIs.
